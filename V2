@@ -1,0 +1,57 @@
+import time
+from pathlib import Path
+from TikTokApi import TikTokApi
+from moviepy.editor import VideoFileClip
+import json
+
+# Carpeta donde se agregan los clips
+VIDEOS_DIR = Path("clips")
+# Archivo para registrar videos ya subidos
+LOG_FILE = Path("videos_subidos.json")
+# Título y hashtags predeterminados
+DEFAULT_TITLE = "🎬 Nuevo clip #gaming #fun"
+
+# Carga o crea el registro de videos subidos
+if LOG_FILE.exists():
+    with open(LOG_FILE, "r") as f:
+        uploaded_videos = set(json.load(f))
+else:
+    uploaded_videos = set()
+
+# Inicializa la API de TikTok
+api = TikTokApi()
+
+print("🚀 Iniciando monitor de clips...")
+
+while True:
+    for video_path in VIDEOS_DIR.glob("*.mp4"):
+        if str(video_path) in uploaded_videos:
+            continue  # Ya subido
+
+        try:
+            clip = VideoFileClip(str(video_path))
+            duration = clip.duration  # en segundos
+            clip.close()
+        except Exception as e:
+            print(f"Error al leer {video_path}: {e}")
+            continue
+
+        if duration < 60:  # Menos de 1 minuto
+            print(f"{video_path.name} es menor a 1 minuto, se ignora")
+            continue
+
+        # Subir a TikTok
+        try:
+            print(f"Subiendo {video_path.name} a TikTok...")
+            api.upload_video(video_path, caption=DEFAULT_TITLE)
+            print(f"✅ {video_path.name} subido exitosamente!")
+            uploaded_videos.add(str(video_path))
+
+            # Guardar registro actualizado
+            with open(LOG_FILE, "w") as f:
+                json.dump(list(uploaded_videos), f)
+
+        except Exception as e:
+            print(f"Error al subir {video_path.name}: {e}")
+
+    time.sleep(10)  # Revisar la carpeta cada 10 segundos
