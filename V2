@@ -1,57 +1,60 @@
+import subprocess
+import json
 import time
 from pathlib import Path
 from TikTokApi import TikTokApi
-from moviepy.editor import VideoFileClip
-import json
 
-# Carpeta donde se agregan los clips
 VIDEOS_DIR = Path("clips")
-# Archivo para registrar videos ya subidos
 LOG_FILE = Path("videos_subidos.json")
-# Título y hashtags predeterminados
 DEFAULT_TITLE = "🎬 Nuevo clip #gaming #fun"
 
-# Carga o crea el registro de videos subidos
+# Cargar videos ya subidos
 if LOG_FILE.exists():
     with open(LOG_FILE, "r") as f:
         uploaded_videos = set(json.load(f))
 else:
     uploaded_videos = set()
 
-# Inicializa la API de TikTok
+# Inicializar TikTokApi
 api = TikTokApi()
 
 print("🚀 Iniciando monitor de clips...")
 
+def get_video_duration(video_path):
+    """Devuelve la duración del video en segundos usando ffprobe."""
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries",
+         "format=duration", "-of",
+         "default=noprint_wrappers=1:nokey=1", str(video_path)],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT
+    )
+    try:
+        return float(result.stdout)
+    except:
+        return 0
+
 while True:
     for video_path in VIDEOS_DIR.glob("*.mp4"):
         if str(video_path) in uploaded_videos:
-            continue  # Ya subido
-
-        try:
-            clip = VideoFileClip(str(video_path))
-            duration = clip.duration  # en segundos
-            clip.close()
-        except Exception as e:
-            print(f"Error al leer {video_path}: {e}")
             continue
 
-        if duration < 60:  # Menos de 1 minuto
+        duration = get_video_duration(video_path)
+        if duration < 60:
             print(f"{video_path.name} es menor a 1 minuto, se ignora")
             continue
 
-        # Subir a TikTok
+        # Subir video a TikTok
         try:
             print(f"Subiendo {video_path.name} a TikTok...")
             api.upload_video(video_path, caption=DEFAULT_TITLE)
             print(f"✅ {video_path.name} subido exitosamente!")
-            uploaded_videos.add(str(video_path))
 
-            # Guardar registro actualizado
+            uploaded_videos.add(str(video_path))
             with open(LOG_FILE, "w") as f:
                 json.dump(list(uploaded_videos), f)
 
         except Exception as e:
             print(f"Error al subir {video_path.name}: {e}")
 
-    time.sleep(10)  # Revisar la carpeta cada 10 segundos
+    time.sleep(10)
